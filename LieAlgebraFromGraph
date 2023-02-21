@@ -1,0 +1,49 @@
+from sage.algebras.lie_algebras.lie_algebra import LieAlgebra
+import csv
+
+def LieAlgebraFromGraph(G, Module = QQ): #takes a graph and a module (optional) as an input
+    d = {} # creating an empty dictionary.
+    for edge in G.edges(): # this defines the relations among the generators of the Lie algebra
+        key = ("x" + str(edge[0]), "x" + str(edge[1])) #[x_i, x_j] bracketing two elements
+        value = {"x_" + str(edge[0]) + "_" + str(edge[1]): 1} #x_{i,j} := x_i_j result of the bracket. If {i,j} is in E(G), then [xi,xj]=x_i_j
+        d[key] = value #appending to the dictionary d
+    C = LieAlgebras(Module).WithBasis().Graded() #defines the category that we need to work with.
+    C = C.FiniteDimensional().Stratified().Nilpotent() #specifies that the algebras we want should be finite, stratified, and nilpotent
+    L = LieAlgebra(Module, d, nilpotent=True, category=C) # so to make the lie algebra, we actually just needed our lil dictionary. that's it.
+    def sort_generators_by_grading(lie_algebra, grading_operator): #this sorts the generators by their grating. In this case, V1 are vertices and V2 are edges
+        generators = lie_algebra.gens() #takes the generators and renames them for manipulation
+        grading = [grading_operator(g) for g in generators] #using the grading operator to splt the elements into their respective vector spaces
+        sorted_generators = [g for _, g in sorted(zip(grading, generators))]
+        grouped_generators = {}
+        for g in sorted_generators:
+            if grading_operator(g) in grouped_generators:
+                grouped_generators[grading_operator(g)].append(g)
+            else:
+                grouped_generators[grading_operator(g)] = [g]
+        return grouped_generators
+    grading_operator = lambda g: g.degree() #defining the grading operator
+    grouped_generators = sort_generators_by_grading(L, grading_operator) #evaluating the function to pull the generators apart
+    V1 = grouped_generators[1] #elements from vertices
+    V2 = grouped_generators[2] #elements from edges
+    def subgraph_and_edges(G, j):
+        subgraph = G.subgraph([v for v in G.vertices() if v != j])
+        edges = {e for e in G.edges() if j in e}
+        return subgraph, edges
+    return L, V1, V2 #returns the Lie algebra
+
+def betti_numbers(lie_algebra): #this function will calcualte the Lie theoretic Betti numbers and return them as a list
+    dims = [] #make empty list to fill
+    H = lie_algebra.cohomology()
+    for n in range(lie_algebra.dimension() + 1):
+        dims.append(H[n].dimension())#fill empty list
+    return dims
+
+def write_to_csv(L): #this function will write the Betti number data into the csv
+    dims = betti_numbers(L)
+    name = str(G) + " on " + str(len(G.vertices())) + " vertices"
+    import csv
+    filename = "betti_numbers" + str(G) + ".csv"
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([name] + dims)
+    print(f"Data written to {filename}")
